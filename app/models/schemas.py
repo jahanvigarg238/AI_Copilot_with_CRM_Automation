@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,20 +12,42 @@ class UserQuery(BaseModel):
 
 
 class QueryIntent(BaseModel):
-    module: str
-    intent: str
+    module: str = Field(
+        description="CRM module: calls, appointments, emails, or whatsapp"
+    )
 
-    agent: Optional[str] = None
-    customer: Optional[str] = None
-    sender: Optional[str] = None
+    intent: str = Field(
+        description="Operation to perform"
+    )
 
-    status: Optional[str] = None
-    keyword: Optional[str] = None
+    agent: Optional[str] = Field(
+        default=None,
+        description="CRM agent name"
+    )
 
-    date_range: Optional[str] = None
+    customer: Optional[str] = Field(
+        default=None,
+        description="Customer name"
+    )
 
-    filters: Dict[str, Any] = Field(
-        default_factory=dict
+    sender: Optional[str] = Field(
+        default=None,
+        description="Email sender"
+    )
+
+    status: Optional[str] = Field(
+        default=None,
+        description="Status such as failed, missed, confirmed"
+    )
+
+    keyword: Optional[str] = Field(
+        default=None,
+        description="Keyword to search for"
+    )
+
+    date_range: Optional[str] = Field(
+        default=None,
+        description="Date range such as today, this_week, last_7_days"
     )
 
 

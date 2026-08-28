@@ -11,57 +11,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
 
-def load_json_file(file_path: Path) -> list:
-    """Load records from a JSON file."""
+def load_json(filename):
+    path = DATA_DIR / filename
 
-    if not file_path.exists():
-        raise FileNotFoundError(
-            f"Data file not found: {file_path}"
-        )
-
-    with open(file_path, "r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    if not isinstance(data, list):
-        raise ValueError(
-            f"{file_path} must contain a JSON list."
-        )
-
-    return data
+    with open(path, "r", encoding="utf-8") as file:
+        return json.load(file)
 
 
-def convert_dates(
-    records: list,
-    date_field: str
-) -> list:
-    """
-    Convert ISO timestamp strings into Python datetime objects.
-    """
-
+def convert_dates(records, field):
     for record in records:
-
-        if date_field in record:
-            value = record[date_field]
-
-            if isinstance(value, str):
-                record[date_field] = datetime.fromisoformat(
-                    value.replace("Z", "+00:00")
-                )
+        if field in record:
+            record[field] = datetime.fromisoformat(
+                record[field].replace("Z", "+00:00")
+            )
 
     return records
 
 
 def load_collection(
     database,
-    collection_name: str,
-    file_name: str,
-    date_field: str
-) -> None:
-    """Load JSON records into MongoDB."""
+    collection_name,
+    filename,
+    date_field
+):
 
-    file_path = DATA_DIR / file_name
-
-    records = load_json_file(file_path)
+    records = load_json(filename)
 
     records = convert_dates(
         records,
@@ -70,7 +44,7 @@ def load_collection(
 
     collection = database[collection_name]
 
-    # Reset collection during development.
+    # Clear previous development data
     collection.delete_many({})
 
     if records:
@@ -78,90 +52,73 @@ def load_collection(
 
     print(
         f"Loaded {len(records)} records "
-        f"into '{collection_name}'."
+        f"into '{collection_name}'"
     )
 
 
-def create_indexes(database) -> None:
-    """
-    Create indexes for frequently queried fields.
-    """
+def create_indexes(database):
 
-    database["calls"].create_index(
+    database.calls.create_index(
         [("agent", 1), ("call_time", -1)]
     )
 
-    database["calls"].create_index(
-        [("call_status", 1), ("call_time", -1)]
-    )
-
-    database["appointments"].create_index(
+    database.appointments.create_index(
         [("agent", 1), ("appointment_time", -1)]
     )
 
-    database["appointments"].create_index(
-        [("status", 1), ("appointment_time", -1)]
-    )
-
-    database["emails"].create_index(
+    database.emails.create_index(
         [("sender", 1), ("timestamp", -1)]
     )
 
-    database["emails"].create_index(
-        [("timestamp", -1)]
-    )
-
-    database["whatsapp"].create_index(
+    database.whatsapp.create_index(
         [("agent", 1), ("timestamp", -1)]
     )
 
-    database["whatsapp"].create_index(
+    database.whatsapp.create_index(
         [("customer", 1), ("timestamp", -1)]
     )
 
-    print("Indexes created successfully.")
 
-
-def main() -> None:
-    """Load all CRM datasets."""
+def main():
 
     print("Connecting to MongoDB...")
 
     client = MongoClient(MONGODB_URI)
 
-    database = client[MONGODB_DATABASE]
-
     client.admin.command("ping")
 
+    database = client[MONGODB_DATABASE]
+
     print(
-        f"Connected to database: {MONGODB_DATABASE}"
+        f"Connected to database: "
+        f"{MONGODB_DATABASE}"
     )
 
     load_collection(
         database,
         "calls",
-        "calls.json",
+        "call_logs_sample.json",
         "call_time"
     )
 
     load_collection(
         database,
         "appointments",
-        "appointments.json",
+        "appointments_sample.json",
         "appointment_time"
     )
 
     load_collection(
         database,
         "emails",
-        "emails.json",
+        "emails_sample.json",
         "timestamp"
     )
 
     load_collection(
         database,
         "whatsapp",
-        "whatsapp.json",
+        "whatsapp_sample.json",
         "timestamp"
     )
 
@@ -169,7 +126,7 @@ def main() -> None:
 
     client.close()
 
-    print("All CRM data loaded successfully.")
+    print("All assignment data loaded successfully.")
 
 
 if __name__ == "__main__":

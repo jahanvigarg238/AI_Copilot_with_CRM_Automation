@@ -1,6 +1,10 @@
 from google import genai
 
-from app.config import GEMINI_API_KEY, GEMINI_MODEL
+from app.config import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+)
+from app.models.schemas import QueryIntent
 
 
 if not GEMINI_API_KEY:
@@ -16,19 +20,26 @@ client = genai.Client(
 
 
 SYSTEM_INSTRUCTION = """
-You are the query-understanding component of a CRM AI Copilot.
+You are the natural-language query understanding
+component of a CRM AI Copilot.
 
-Your job is ONLY to understand the user's natural-language
-question and convert it into a structured QueryIntent.
+Your job is ONLY to understand the user's question
+and convert it into a structured QueryIntent.
 
-The available CRM modules are:
+Do NOT answer the question.
 
-1. calls
-2. appointments
-3. emails
-4. whatsapp
+Do NOT invent CRM data.
 
-Supported intents include:
+Do NOT write MongoDB queries.
+
+Supported CRM modules:
+
+calls
+appointments
+emails
+whatsapp
+
+Supported intents:
 
 calls:
 - count
@@ -48,30 +59,136 @@ whatsapp:
 - count
 - latest
 
-Important rules:
+Supported date ranges:
 
-- Never invent data.
-- Never calculate the final business answer.
-- Never write MongoDB queries.
-- Extract the relevant agent, customer, sender,
-  status, keyword, and date range when present.
-- Use null when a field is not relevant.
-- date_range must use one of:
-  today
-  this_week
-  last_7_days
-  last_3_days
-  last_month
-- For questions that do not belong to these CRM capabilities,
-  identify them as unsupported.
+today
+this_week
+last_7_days
+last_3_days
+last_month
+
+Rules:
+
+1. Extract the agent when the user mentions an agent.
+2. Extract the customer when the user mentions a customer.
+3. Extract the email sender when applicable.
+4. Extract status when applicable.
+5. Extract a subject keyword when applicable.
+6. Convert natural language dates into the supported
+   date_range values.
+7. Use null for fields that are not relevant.
+
+Examples:
+
+Question:
+How many calls did Priya Sharma make this week?
+
+Output:
+module = calls
+intent = count
+agent = Priya Sharma
+date_range = this_week
+
+Question:
+List all failed calls in the last 7 days.
+
+Output:
+module = calls
+intent = list
+status = failed
+date_range = last_7_days
+
+Question:
+What is the average call duration for completed calls?
+
+Output:
+module = calls
+intent = average
+
+Question:
+List all confirmed appointments for today.
+
+Output:
+module = appointments
+intent = list
+status = confirmed
+date_range = today
+
+Question:
+How many appointments has Neha Kapoor had this week?
+
+Output:
+module = appointments
+intent = count
+agent = Neha Kapoor
+date_range = this_week
+
+Question:
+Find missed appointments in the last 7 days.
+
+Output:
+module = appointments
+intent = list
+status = missed
+date_range = last_7_days
+
+Question:
+List all emails sent by support@crm.io this week.
+
+Output:
+module = emails
+intent = list
+sender = support@crm.io
+date_range = this_week
+
+Question:
+How many emails had onboarding in the subject last month?
+
+Output:
+module = emails
+intent = count
+keyword = onboarding
+date_range = last_month
+
+Question:
+Show emails that were not delivered successfully.
+
+Output:
+module = emails
+intent = list
+status = undelivered
+
+Question:
+List all WhatsApp messages sent by Amit Verma today.
+
+Output:
+module = whatsapp
+intent = list
+agent = Amit Verma
+date_range = today
+
+Question:
+How many WhatsApp messages were delivered vs failed
+in the last 3 days?
+
+Output:
+module = whatsapp
+intent = count
+date_range = last_3_days
+
+Question:
+Find the latest message sent to Vikram Das.
+
+Output:
+module = whatsapp
+intent = latest
+customer = Vikram Das
 """
 
 
-def parse_with_gemini(query: str) -> dict:
-    """
-    Send the user query to Gemini and receive
-    structured JSON.
-    """
+def parse_with_gemini(
+    query: str
+) -> QueryIntent:
 
     response = client.models.generate_content(
         model=GEMINI_MODEL,
@@ -79,56 +196,13 @@ def parse_with_gemini(query: str) -> dict:
         config={
             "system_instruction": SYSTEM_INSTRUCTION,
             "response_mime_type": "application/json",
-            "response_schema": {
-                "type": "OBJECT",
-                "properties": {
-                    "module": {
-                        "type": "STRING"
-                    },
-                    "intent": {
-                        "type": "STRING"
-                    },
-                    "agent": {
-                        "type": "STRING",
-                        "nullable": True
-                    },
-                    "customer": {
-                        "type": "STRING",
-                        "nullable": True
-                    },
-                    "sender": {
-                        "type": "STRING",
-                        "nullable": True
-                    },
-                    "status": {
-                        "type": "STRING",
-                        "nullable": True
-                    },
-                    "keyword": {
-                        "type": "STRING",
-                        "nullable": True
-                    },
-                    "date_range": {
-                        "type": "STRING",
-                        "nullable": True
-                    },
-                    "filters": {
-                        "type": "OBJECT"
-                    }
-                },
-                "required": [
-                    "module",
-                    "intent",
-                    "agent",
-                    "customer",
-                    "sender",
-                    "status",
-                    "keyword",
-                    "date_range",
-                    "filters"
-                ]
-            }
-        }
+            "response_schema": QueryIntent,
+        },
     )
 
-    return response.parsed
+    if response.parsed:
+        return response.parsed
+
+    return QueryIntent.model_validate_json(
+        response.text
+    )
