@@ -1,0 +1,44 @@
+services:
+
+  mongodb:
+    image: mongo:7
+    container_name: crm-mongodb
+    restart: unless-stopped
+
+    ports:
+      - "27017:27017"
+
+    volumes:
+      - mongodb_data:/data/db
+
+
+  app:
+    build: .
+
+    container_name: crm-ai-copilot
+
+    depends_on:
+      - mongodb
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: crm_copilot
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL}
+
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
+
+
+volumes:
+  mongodb_data:
