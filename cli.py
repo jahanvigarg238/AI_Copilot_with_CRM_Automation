@@ -1,60 +1,87 @@
 from app.services.query_parser import parse_query
 from app.services.response_service import (
     execute_query,
-    format_answer,
+    build_response,
 )
+from app.utils.date_utils import get_date_range
 
 
 def main():
 
-    print("=" * 50)
-    print("             CRM AI COPILOT")
-    print("=" * 50)
-
+    print("=" * 55)
+    print("              CRM AI COPILOT")
+    print("=" * 55)
+    print()
     print(
-        "\nAsk questions about calls, appointments, "
+        "Ask questions about calls, appointments, "
         "emails, or WhatsApp."
     )
-
-    print(
-        "Type 'exit' to quit.\n"
-    )
+    print("Type 'exit' to quit.")
+    print()
 
     while True:
 
         user_query = input("You: ").strip()
 
-        if user_query.lower() == "exit":
-            print("Goodbye!")
+        if user_query.lower() in {
+            "exit",
+            "quit",
+        }:
+            print("\nGoodbye!")
             break
 
         if not user_query:
+            print(
+                "Please enter a CRM question."
+            )
             continue
 
         try:
+
+            # -----------------------------
+            # NLP
+            # -----------------------------
 
             intent = parse_query(
                 user_query
             )
 
-            result = execute_query(
-                intent
+            # -----------------------------
+            # DATE RANGE
+            # -----------------------------
+
+            start, end = get_date_range(
+                intent.date_range
             )
 
-            answer = format_answer(
+            # -----------------------------
+            # DATABASE
+            # -----------------------------
+
+            result = execute_query(
                 intent,
-                result
+                start,
+                end,
+            )
+
+            # -----------------------------
+            # RESPONSE
+            # -----------------------------
+
+            response = build_response(
+                user_question=user_query,
+                intent=intent,
+                result=result,
             )
 
             print(
-                f"\nCopilot: {answer}\n"
+                f"\nCopilot: {response.answer}\n"
             )
 
         except Exception as error:
 
             print(
-                f"\nCopilot: I couldn't process "
-                f"that request. {error}\n"
+                f"\nError: {error}\n"
             )
 
 

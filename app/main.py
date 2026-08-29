@@ -1,100 +1,106 @@
 from fastapi import FastAPI, HTTPException
 
-from app.database.connection import check_database_connection
 from app.models.schemas import (
-    CopilotResponse,
     UserQuery,
 )
-from app.services.query_parser import parse_query
+
+from app.services.query_parser import (
+    parse_query,
+)
+
 from app.services.response_service import (
     execute_query,
-    format_answer,
+    build_response,
+)
+
+from app.utils.date_utils import (
+    get_date_range,
+)
+from app.services.conversation_context import (
+    ConversationContext,
 )
 
 
 app = FastAPI(
     title="CRM AI Copilot",
-    description=(
-        "Natural-language AI Copilot for "
-        "CRM interaction data stored in MongoDB."
-    ),
+    description="Natural-language CRM query assistant",
     version="1.0.0",
 )
+conversation_context = ConversationContext()
 
 
 @app.get("/")
 def root():
+
     return {
-        "message": "CRM AI Copilot is running."
+        "message": "CRM AI Copilot is running"
     }
 
 
 @app.get("/health")
-def health_check():
+def health():
 
-    database_connected = (
-        check_database_connection()
+    from app.database.connection import (
+        check_database_connection,
     )
 
     return {
-        "status": (
-            "healthy"
-            if database_connected
-            else "unhealthy"
-        ),
-        "mongodb": database_connected,
+        "status": "healthy",
+        "mongodb": check_database_connection(),
     }
 
 
-@app.post(
-    "/ask",
-    response_model=CopilotResponse
-)
-def ask_copilot(
-    request: UserQuery
-):
+@app.post("/ask")
+def ask(query: UserQuery):
 
     try:
 
-        # Step 1:
-        # Understand natural language
-        intent = parse_query(
-            request.query
-        )
+        # --------------------------
+        # NLP
+        # --------------------------
 
-        # Step 2:
-        # Execute deterministic MongoDB query
-        result = execute_query(
+        intent = parse_query(
+            query.query
+        )
+        intent = conversation_context.resolve(
             intent
         )
 
-        # Step 3:
-        # Generate concise response
-        answer = format_answer(
+        conversation_context.update(
+            intent
+        )   
+
+        # --------------------------
+        # DATE RESOLUTION
+        # --------------------------
+
+        start, end = get_date_range(
+            intent.date_range
+        )
+
+        # --------------------------
+        # MONGODB
+        # --------------------------
+
+        result = execute_query(
             intent,
-            result
+            start,
+            end,
         )
 
-        return CopilotResponse(
-            answer=answer,
-            module=intent.module,
-            intent=intent.intent,
-            data=result
-        )
+        # --------------------------
+        # NATURAL RESPONSE
+        # --------------------------
 
-    except ValueError as error:
-
-        raise HTTPException(
-            status_code=400,
-            detail=str(error)
+        return build_response(
+            user_question=query.query,
+            intent=intent,
+            result=result,
         )
 
     except Exception as error:
 
         raise HTTPException(
-            status_code=500,
-            detail=(
-                "An unexpected error occurred: "
-                f"{str(error)}"
-            )
+            status_code=400,
+            detail=str(error),
         )

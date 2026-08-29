@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from app.database.connection import db
 
 
+# MongoDB collection for WhatsApp messages
 whatsapp_collection = db["whatsapp"]
 
 
@@ -71,7 +72,9 @@ def get_delivery_status_counts(
     ]
 
     result = list(
-        whatsapp_collection.aggregate(pipeline)
+        whatsapp_collection.aggregate(
+            pipeline
+        )
     )
 
     counts = {
@@ -80,8 +83,11 @@ def get_delivery_status_counts(
     }
 
     for item in result:
+
         status = item["_id"]
-        counts[status] = item["count"]
+
+        if status in counts:
+            counts[status] = item["count"]
 
     return counts
 

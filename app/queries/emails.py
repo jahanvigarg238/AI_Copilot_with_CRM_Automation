@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from app.database.connection import db
 
 
+# MongoDB collection for emails
 emails_collection = db["emails"]
 
 
@@ -57,7 +58,9 @@ def count_emails_by_subject_keyword(
         }
     }
 
-    return emails_collection.count_documents(query)
+    return emails_collection.count_documents(
+        query
+    )
 
 
 def get_undelivered_emails() -> List[Dict[str, Any]]:
