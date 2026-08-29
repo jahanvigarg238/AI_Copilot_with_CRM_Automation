@@ -1,6 +1,52 @@
 from typing import Any
 
 
+def get_time_phrase(
+    user_question: str,
+    default: str = ""
+) -> str:
+    """
+    Convert common time expressions in the user's
+    question into a natural-language phrase.
+    """
+
+    text = user_question.lower()
+
+    if "today" in text:
+        return "today"
+
+    if (
+        "last 7 days" in text
+        or "past 7 days" in text
+        or "last seven days" in text
+        or "past seven days" in text
+    ):
+        return "in the last 7 days"
+
+    if (
+        "last 3 days" in text
+        or "past 3 days" in text
+        or "last three days" in text
+        or "past three days" in text
+    ):
+        return "in the last 3 days"
+
+    if (
+        "last month" in text
+        or "previous month" in text
+    ):
+        return "last month"
+
+    if (
+        "this week" in text
+        or "current week" in text
+        or "so far this week" in text
+    ):
+        return "this week"
+
+    return default
+
+
 def generate_answer(
     user_question: str,
     module: str,
@@ -8,125 +54,343 @@ def generate_answer(
     result: Any,
     query_intent=None,
 ) -> str:
+    """
+    Convert database results into concise,
+    natural-language responses.
+    """
 
-    # ==========================================
-    # NO RESULTS
-    # ==========================================
+    time_phrase = get_time_phrase(
+        user_question
+    )
+
+    # ==================================================
+    # EMPTY RESULTS
+    # ==================================================
 
     if result is None:
-        return "I couldn't find any matching records."
 
-    if isinstance(result, list) and not result:
-        return "I couldn't find any matching records."
+        return (
+            "I couldn't find any matching records "
+            "for your request."
+        )
 
-    # ==========================================
+    if isinstance(result, list) and len(result) == 0:
+
+        return (
+            "I couldn't find any matching records "
+            "for your request."
+        )
+
+    # ==================================================
     # CALLS
-    # ==========================================
+    # ==================================================
 
     if module == "calls":
 
-        # Count
+        agent = None
+        status = None
+
+        if query_intent:
+
+            agent = getattr(
+                query_intent,
+                "agent",
+                None
+            )
+
+            status = getattr(
+                query_intent,
+                "status",
+                None
+            )
+
+        # ----------------------------------------------
+        # Count calls
+        # ----------------------------------------------
+
         if intent == "count":
 
-            agent = None
-
-            if query_intent:
-                agent = getattr(
-                    query_intent,
-                    "agent",
-                    None
-                )
-
             if agent:
+
                 return (
-                    f"{agent} made {result} "
-                    f"calls this week."
+                    f"{agent} made {result} calls"
+                    + (
+                        f" {time_phrase}"
+                        if time_phrase
+                        else ""
+                    )
+                    + "."
                 )
 
             return (
-                f"There were {result} calls."
+                f"There were {result} calls"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
             )
 
-        # Average
+        # ----------------------------------------------
+        # Failed calls
+        # ----------------------------------------------
+
+        if (
+            intent == "list"
+            and status == "failed"
+        ):
+
+            return (
+                f"I found {len(result)} failed calls"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
+            )
+
+        # ----------------------------------------------
+        # Average call duration
+        # ----------------------------------------------
+
         if intent == "average":
 
             return (
-                f"The average duration of "
-                f"completed calls is {result} minutes."
+                "Completed calls had an average "
+                f"duration of {result} minutes."
             )
 
-        # List
-        if intent == "list":
-
-            count = len(result)
-
-            return (
-                f"I found {count} failed calls "
-                f"in the last 7 days."
-            )
-
-    # ==========================================
+    # ==================================================
     # APPOINTMENTS
-    # ==========================================
+    # ==================================================
 
     if module == "appointments":
 
+        agent = None
+        status = None
+
+        if query_intent:
+
+            agent = getattr(
+                query_intent,
+                "agent",
+                None
+            )
+
+            status = getattr(
+                query_intent,
+                "status",
+                None
+            )
+
+        # ----------------------------------------------
+        # Count appointments
+        # ----------------------------------------------
+
         if intent == "count":
 
-            agent = None
-
-            if query_intent:
-                agent = getattr(
-                    query_intent,
-                    "agent",
-                    None
-                )
-
             if agent:
+
                 return (
-                    f"{agent} had {result} "
-                    f"appointments this week."
+                    f"{agent} had {result} appointments"
+                    + (
+                        f" {time_phrase}"
+                        if time_phrase
+                        else ""
+                    )
+                    + "."
                 )
 
             return (
-                f"There were {result} appointments."
+                f"There were {result} appointments"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
             )
 
-        if intent == "list":
+        # ----------------------------------------------
+        # Agent-specific natural-language question
+        #
+        # Example:
+        # "Can you tell me Neha's appointments
+        #  this week?"
+        #
+        # The router returns an integer even though
+        # Gemini may classify the intent as "list".
+        # ----------------------------------------------
 
-            count = len(result)
+        if (
+            intent == "list"
+            and agent
+            and not status
+            and isinstance(result, int)
+        ):
 
             return (
-                f"I found {count} matching "
-                f"appointments."
+                f"{agent} had {result} appointments"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
             )
 
-    # ==========================================
+        # ----------------------------------------------
+        # Confirmed appointments
+        # ----------------------------------------------
+
+        if (
+            intent == "list"
+            and status == "confirmed"
+        ):
+
+            return (
+                f"I found {len(result)} confirmed "
+                f"appointments"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
+            )
+
+        # ----------------------------------------------
+        # Missed appointments
+        # ----------------------------------------------
+
+        if (
+            intent == "list"
+            and status == "missed"
+        ):
+
+            return (
+                f"I found {len(result)} missed "
+                f"appointments"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
+            )
+
+    # ==================================================
     # EMAILS
-    # ==========================================
+    # ==================================================
 
     if module == "emails":
 
-        if intent == "count":
+        sender = None
+        keyword = None
+        status = None
 
-            return (
-                f"There were {result} "
-                f"matching emails."
+        if query_intent:
+
+            sender = getattr(
+                query_intent,
+                "sender",
+                None
             )
 
-        if intent == "list":
-
-            count = len(result)
-
-            return (
-                f"I found {count} matching emails."
+            keyword = getattr(
+                query_intent,
+                "keyword",
+                None
             )
 
-    # ==========================================
+            status = getattr(
+                query_intent,
+                "status",
+                None
+            )
+
+        # ----------------------------------------------
+        # Emails by sender
+        # ----------------------------------------------
+
+        if (
+            intent == "list"
+            and sender
+        ):
+
+            return (
+                f"I found {len(result)} emails "
+                f"sent by {sender}"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
+            )
+
+        # ----------------------------------------------
+        # Subject keyword count
+        # ----------------------------------------------
+
+        if (
+            intent == "count"
+            and keyword
+        ):
+
+            return (
+                f"There were {result} emails "
+                f"with '{keyword}' in the subject"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
+            )
+
+        # ----------------------------------------------
+        # Undelivered emails
+        # ----------------------------------------------
+
+        if (
+            intent == "list"
+            and status == "failed"
+        ):
+
+            return (
+                f"I found {len(result)} emails "
+                "that were not delivered successfully."
+            )
+
+    # ==================================================
     # WHATSAPP
-    # ==========================================
+    # ==================================================
 
     if module == "whatsapp":
+
+        agent = None
+        customer = None
+
+        if query_intent:
+
+            agent = getattr(
+                query_intent,
+                "agent",
+                None
+            )
+
+            customer = getattr(
+                query_intent,
+                "customer",
+                None
+            )
+
+        # ----------------------------------------------
+        # Delivery status counts
+        # ----------------------------------------------
 
         if intent == "count":
 
@@ -145,21 +409,48 @@ def generate_answer(
                 return (
                     f"{delivered} WhatsApp messages "
                     f"were delivered and {failed} "
-                    f"failed."
+                    f"failed"
+                    + (
+                        f" {time_phrase}"
+                        if time_phrase
+                        else ""
+                    )
+                    + "."
                 )
 
             return (
-                f"There were {result} "
-                f"WhatsApp messages."
+                f"There were {result} WhatsApp messages"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
             )
 
-        if intent == "list":
+        # ----------------------------------------------
+        # Messages by agent
+        # ----------------------------------------------
 
-            count = len(result)
+        if (
+            intent == "list"
+            and agent
+        ):
 
             return (
-                f"I found {count} WhatsApp messages."
+                f"I found {len(result)} WhatsApp "
+                f"messages sent by {agent}"
+                + (
+                    f" {time_phrase}"
+                    if time_phrase
+                    else ""
+                )
+                + "."
             )
+
+        # ----------------------------------------------
+        # Latest message
+        # ----------------------------------------------
 
         if intent == "latest":
 
@@ -171,6 +462,14 @@ def generate_answer(
 
                 if message:
 
+                    if customer:
+
+                        return (
+                            f'The latest message sent '
+                            f'to {customer} was: '
+                            f'"{message}"'
+                        )
+
                     return (
                         f'The latest message was: '
                         f'"{message}"'
@@ -180,8 +479,15 @@ def generate_answer(
                 "I found the latest WhatsApp message."
             )
 
-    # ==========================================
-    # FALLBACK
-    # ==========================================
+    # ==================================================
+    # GENERIC FALLBACK
+    # ==================================================
+
+    if isinstance(result, list):
+
+        return (
+            f"I found {len(result)} matching "
+            f"{module} records."
+        )
 
     return str(result)

@@ -26,9 +26,120 @@ SUPPORTED_DATE_RANGES = {
 }
 
 
+# --------------------------------------------------
+# Entity normalization
+# --------------------------------------------------
+
+AGENT_ALIASES = {
+    "priya": "Priya Sharma",
+    "priya sharma": "Priya Sharma",
+
+    "neha": "Neha Kapoor",
+    "neha kapoor": "Neha Kapoor",
+
+    "amit": "Amit Verma",
+    "amit verma": "Amit Verma",
+}
+
+
+CUSTOMER_ALIASES = {
+    "vikram": "Vikram Das",
+    "vikram das": "Vikram Das",
+}
+
+
+def normalize_agent(agent: str | None) -> str | None:
+
+    if not agent:
+        return None
+
+    cleaned = agent.strip().lower()
+
+    return AGENT_ALIASES.get(
+        cleaned,
+        agent.strip()
+    )
+
+
+def normalize_customer(
+    customer: str | None
+) -> str | None:
+
+    if not customer:
+        return None
+
+    cleaned = customer.strip().lower()
+
+    return CUSTOMER_ALIASES.get(
+        cleaned,
+        customer.strip()
+    )
+
+
+def normalize_intent(
+    intent: QueryIntent
+) -> QueryIntent:
+
+    # Normalize agent names
+    if intent.agent:
+
+        intent.agent = normalize_agent(
+            intent.agent
+        )
+
+    # Normalize customer names
+    if intent.customer:
+
+        intent.customer = normalize_customer(
+            intent.customer
+        )
+
+    # Normalize module
+    if intent.module:
+
+        intent.module = (
+            intent.module
+            .strip()
+            .lower()
+        )
+
+    # Normalize intent
+    if intent.intent:
+
+        intent.intent = (
+            intent.intent
+            .strip()
+            .lower()
+        )
+
+    # Normalize status
+    if intent.status:
+
+        intent.status = (
+            intent.status
+            .strip()
+            .lower()
+        )
+
+    # Normalize date range
+    if intent.date_range:
+
+        intent.date_range = (
+            intent.date_range
+            .strip()
+            .lower()
+        )
+
+    return intent
+
+
 def validate_intent(
     intent: QueryIntent
 ) -> QueryIntent:
+
+    intent = normalize_intent(
+        intent
+    )
 
     if intent.module not in SUPPORTED_MODULES:
 
@@ -57,19 +168,26 @@ def parse_query(
 
     try:
 
+        # ------------------------------------------
         # Primary NLP engine
+        # ------------------------------------------
+
         intent = parse_with_gemini(
             user_query
         )
 
-        return validate_intent(intent)
+        return validate_intent(
+            intent
+        )
 
     except Exception as error:
 
         error_text = str(error).lower()
 
-        # Use local NLU when Gemini quota/API
-        # is temporarily unavailable.
+        # ------------------------------------------
+        # Fallback NLU
+        # ------------------------------------------
+
         if (
             "429" in error_text
             or "resource_exhausted" in error_text
@@ -88,7 +206,9 @@ def parse_query(
                 user_query
             )
 
-            return validate_intent(intent)
+            return validate_intent(
+                intent
+            )
 
         # Don't hide genuine programming errors
         raise

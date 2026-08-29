@@ -33,6 +33,7 @@ def execute_query(
         if intent.intent == "count":
 
             if not intent.agent:
+
                 raise ValueError(
                     "Please specify the agent whose "
                     "calls you want to count."
@@ -73,10 +74,40 @@ def execute_query(
         if intent.intent == "count":
 
             if not intent.agent:
+
                 raise ValueError(
                     "Please specify the agent whose "
                     "appointments you want to count."
                 )
+
+            return (
+                appointments
+                .count_appointments_by_agent(
+                    agent=intent.agent,
+                    start_date=start,
+                    end_date=end,
+                )
+            )
+
+        # Natural-language variation:
+        #
+        # "Can you tell me Neha's appointments
+        #  this week?"
+        #
+        # Gemini may interpret this as:
+        #
+        # module = appointments
+        # intent = list
+        # agent = Neha Kapoor
+        #
+        # For this type of agent-specific question,
+        # return the appointment count.
+
+        if (
+            intent.intent == "list"
+            and intent.agent
+            and not intent.status
+        ):
 
             return (
                 appointments
@@ -121,7 +152,7 @@ def execute_query(
 
     if intent.module == "emails":
 
-        # Emails from a specific sender
+        # Emails from sender
         if (
             intent.intent == "list"
             and intent.sender
@@ -133,7 +164,7 @@ def execute_query(
                 end_date=end,
             )
 
-        # Emails containing a subject keyword
+        # Subject keyword count
         if (
             intent.intent == "count"
             and intent.keyword
@@ -165,7 +196,7 @@ def execute_query(
 
     if intent.module == "whatsapp":
 
-        # Messages sent by an agent
+        # Messages sent by agent
         if (
             intent.intent == "list"
             and intent.agent
@@ -195,6 +226,7 @@ def execute_query(
         if intent.intent == "latest":
 
             if not intent.customer:
+
                 raise ValueError(
                     "Please specify the customer."
                 )
