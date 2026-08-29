@@ -16,6 +16,7 @@ from app.services.response_service import (
 from app.utils.date_utils import (
     get_date_range,
 )
+
 from app.services.conversation_context import (
     ConversationContext,
 )
@@ -26,6 +27,8 @@ app = FastAPI(
     description="Natural-language CRM query assistant",
     version="1.0.0",
 )
+
+
 conversation_context = ConversationContext()
 
 
@@ -62,21 +65,39 @@ def ask(query: UserQuery):
         intent = parse_query(
             query.query
         )
+
         intent = conversation_context.resolve(
             intent
         )
 
         conversation_context.update(
             intent
-        )   
+        )
 
         # --------------------------
         # DATE RESOLUTION
         # --------------------------
 
-        start, end = get_date_range(
-            intent.date_range
-        )
+        # Some queries do not require
+        # a date range, for example:
+        #
+        # - average call duration
+        # - undelivered emails
+        # - latest WhatsApp message
+        #
+        # Therefore, only resolve dates
+        # when a date_range exists.
+
+        if intent.date_range:
+
+            start, end = get_date_range(
+                intent.date_range
+            )
+
+        else:
+
+            start = None
+            end = None
 
         # --------------------------
         # MONGODB

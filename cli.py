@@ -50,9 +50,13 @@ def main():
             # DATE RANGE
             # -----------------------------
 
-            start, end = get_date_range(
-                intent.date_range
-            )
+            if intent.date_range:
+                start, end = get_date_range(
+                    intent.date_range
+                )
+            else:
+                start = None
+                end = None
 
             # -----------------------------
             # DATABASE
